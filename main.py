@@ -4,7 +4,7 @@ from datetime import datetime
 def load_forklift_data():
     with open("forklift_data.json", "r") as file:
         forklifts = (json.load(file))
-        return forklifts
+    return forklifts
 
 
 
@@ -15,6 +15,7 @@ def analyze_fleet(forklifts):
     number_active = []
     number_charging = []
     number_offline = []
+    number_maintenance = []
 
 
     for forklift in forklifts:
@@ -31,6 +32,9 @@ def analyze_fleet(forklifts):
             number_active.append(forklift_id)
         elif status == "charging":
             number_charging.append(forklift_id)
+        elif status == "maintenance":
+            number_maintenance.append(forklift_id)
+            alerts.append(f"{forklift_id} UNDER MAINTENANCE")
         else:
             alerts.append(f"{forklift_id} UNKNOWN STATUS: '{status}'")
         if battery < 10:
@@ -40,7 +44,7 @@ def analyze_fleet(forklifts):
         if speed > 6.0:
             alerts.append(f"{forklift_id} SPEED WARNING: {speed} mph")
 
-    return total_forklifts, number_active, number_charging, number_offline, alerts
+    return total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts
 
 def fleet_health(forklifts):
 
@@ -57,12 +61,14 @@ def fleet_health(forklifts):
             health_score -= 10
         if forklift["status"] == "offline":
             health_score -= 10
+        if forklift["status"] == "maintenance":
+            health_score -= 5
         if forklift["speed"] > 6.0:
             health_score -= 5
 
     return max(health_score, 0)
 
-def print_report(forklifts, health_score, total_forklifts, number_active, number_charging, number_offline, alerts):
+def print_report(forklifts, health_score, total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts):
 
     print(f"""
 --------------------
@@ -84,6 +90,7 @@ Total Forklifts: {total_forklifts}
 Active: {len(number_active)}
 Charging: {len(number_charging)}
 Offline: {len(number_offline)}
+Maintenance: {len(number_maintenance)}
 Alerts: {len(alerts)}""")
 
     print(f"""
@@ -117,6 +124,6 @@ def print_alerts(alerts):
 
 forklifts = load_forklift_data()
 health_score = fleet_health(forklifts)
-total_forklifts, number_active, number_charging,number_offline, alerts = analyze_fleet(forklifts)
-print_report(forklifts, health_score, total_forklifts, number_active, number_charging,number_offline, alerts)
+total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts = analyze_fleet(forklifts)
+print_report(forklifts, health_score, total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts)
 print_alerts(alerts)
