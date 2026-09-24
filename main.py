@@ -44,7 +44,14 @@ def analyze_fleet(forklifts):
         if speed > 6.0:
             alerts.append(f"{forklift_id} SPEED WARNING: {speed} mph")
 
-    return total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts
+    return {
+        "total_forklifts": total_forklifts,
+        "active": number_active,
+        "charging": number_charging,
+        "offline": number_offline,
+        "maintenance": number_maintenance,
+        "alerts": alerts,
+    }
 
 def fleet_health(forklifts):
 
@@ -68,7 +75,7 @@ def fleet_health(forklifts):
 
     return max(health_score, 0)
 
-def print_report(forklifts, health_score, total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts):
+def print_report(forklifts, health_score, summary):
 
     print(f"""
 --------------------
@@ -86,12 +93,12 @@ FLEET HEALTH: {health_score}%""")
 FLEET SUMMARY
 ------------------
 
-Total Forklifts: {total_forklifts}
-Active: {len(number_active)}
-Charging: {len(number_charging)}
-Offline: {len(number_offline)}
-Maintenance: {len(number_maintenance)}
-Alerts: {len(alerts)}""")
+Total Forklifts: {summary["total_forklifts"]}
+Active: {len(summary["active"])}
+Charging: {len(summary["charging"])}
+Offline: {len(summary["offline"])}
+Maintenance: {len(summary["maintenance"])}
+Alerts: {len(summary["alerts"])}""")
 
     print(f"""
 --------------------
@@ -124,6 +131,6 @@ def print_alerts(alerts):
 
 forklifts = load_forklift_data()
 health_score = fleet_health(forklifts)
-total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts = analyze_fleet(forklifts)
-print_report(forklifts, health_score, total_forklifts, number_active, number_charging, number_offline, number_maintenance, alerts)
-print_alerts(alerts)
+summary = analyze_fleet(forklifts)
+print_report(forklifts, health_score, summary)
+print_alerts(summary["alerts"])
