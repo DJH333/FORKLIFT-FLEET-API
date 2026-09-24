@@ -1,0 +1,37 @@
+[
+    {
+        "forklift_id": "RAY-102",
+        "location": "Aisle 5",
+        "battery": 18,
+        "speed": 4.5,
+        "status": "active"
+    },
+    {
+        "forklift_id": "RAY-205",
+        "location": "Dock Area",
+        "battery": 75,
+        "speed": 2.1,
+        "status": "charging"
+    },
+    {
+        "forklift_id": "RAY-310",
+        "location": "Aisle 12",
+        "battery": 8,
+        "speed": 6.8,
+        "status": "active"
+    },
+    {
+        "forklift_id": "RAY-415",
+        "location": "Shipping",
+        "battery": 42,
+        "speed": 3.2,
+        "status": "active"
+    },
+    {
+    "forklift_id": "RAY-500",
+    "location": "Charging Station",
+    "battery": 60,
+    "speed": 0,
+    "status": "offline"
+    }
+]
