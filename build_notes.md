@@ -93,18 +93,18 @@ A running log of what I built, why I built it that way, and what I learned. I us
 
 ## REVIEW BEFORE PHASE 2 (what I'd change, and why)
 
-I reviewed the Phase 1 code before building the API on top of it. These are real findings I can talk about in an interview ("here's what I'd do differently and why"):
+I reviewed the Phase 1 code before building the API on top of it. These are real findings I can talk about in an interview ("here's what I'd do differently and why"). Status: ✅ = fixed (see **Refactor & fixes** below), ⬜ = still to do.
 
-* `[CONCEPT]` **Charging count bug.** `analyze_fleet` counts "charging" by `location == "Charging Station"` instead of by `status == "charging"`. With the current data, the "Charging: 1" in the report is RAY-500, which is actually *offline*. RAY-205 (status `charging`) isn't counted anywhere, so it's in none of the buckets. The totals only add up to 5 by coincidence. Lesson: pick **one** source of truth for state (the `status` field) and don't infer it from a different field.
-* `[CONCEPT]` **Top-level script code.** The load/analyze/print calls run as soon as the file is imported. Once FastAPI imports my analysis functions, that would print a report every time the server starts. The fix is the `if __name__ == "__main__":` guard.
-* `[CONCEPT]` **Duplicated thresholds ("magic numbers").** `20` and `6.0` appear in both `analyze_fleet` and `fleet_health`. If I change the speed limit in one place, the alerts and the score disagree. They should be named constants defined once (e.g. `LOW_BATTERY_PCT = 20`).
-* `[CONCEPT]` **Unused variables in `fleet_health`.** It unpacks `forklift_id`, `location`, etc., then uses `forklift["battery"]` directly anyway. That's leftover from copying the loop.
-* `[CONCEPT]` **Misleading names.** `number_active` is a list of IDs, not a number. `active_ids` says what it actually holds.
-* `[CONCEPT]` **Five-value tuple return.** `analyze_fleet` returns five values that must be unpacked in exactly the right order, and `print_report` takes seven arguments. Returning one dictionary (`{"total": ..., "active_ids": [...], "alerts": [...]}`) is safer, and a dict is exactly what an API endpoint returns as JSON.
-* `[CONCEPT]` **The health score doesn't scale with fleet size.** A fixed −10 per problem means 10 low-battery trucks zero out a 200-truck fleet the same as a 10-truck fleet. Worth deciding whether it should be a percentage of the fleet.
-* `[CONCEPT]` **No error handling on load.** A missing file, bad JSON, or a record missing a key would crash with a raw traceback. Same principle as the GitHub client: fail with a clear message.
-* `[CONCEPT]` **Relative file path.** `open("forklift_data.json")` only works if I run the script from the project folder. Building the path from the script's own location fixes that.
-* `[CONCEPT]` **Timestamp.** `datetime.today()` is naive and prints microseconds. I already learned to use `datetime.now(timezone.utc)` in the GitHub client, and a formatted string reads better in a report.
+* ✅ `[CONCEPT]` **Charging count bug.** `analyze_fleet` counts "charging" by `location == "Charging Station"` instead of by `status == "charging"`. With the current data, the "Charging: 1" in the report is RAY-500, which is actually *offline*. RAY-205 (status `charging`) isn't counted anywhere, so it's in none of the buckets. The totals only add up to 5 by coincidence. Lesson: pick **one** source of truth for state (the `status` field) and don't infer it from a different field.
+* ⬜ `[CONCEPT]` **Top-level script code.** The load/analyze/print calls run as soon as the file is imported. Once FastAPI imports my analysis functions, that would print a report every time the server starts. The fix is the `if __name__ == "__main__":` guard.
+* ⬜ `[CONCEPT]` **Duplicated thresholds ("magic numbers").** `20` and `6.0` appear in both `analyze_fleet` and `fleet_health`. If I change the speed limit in one place, the alerts and the score disagree. They should be named constants defined once (e.g. `LOW_BATTERY_PCT = 20`).
+* ⬜ `[CONCEPT]` **Unused variables in `fleet_health`.** (Removed the unused `location` line from `analyze_fleet`; `fleet_health` still has them.) It unpacks `forklift_id`, `location`, etc., then uses `forklift["battery"]` directly anyway. That's leftover from copying the loop.
+* ⬜ `[CONCEPT]` **Misleading names.** (Partly addressed: the summary dict keys are now `"active"`, `"charging"`, etc., but the local variables are still `number_*`.) `number_active` is a list of IDs, not a number. `active_ids` says what it actually holds.
+* ✅ `[CONCEPT]` **Five-value tuple return.** `analyze_fleet` returns five values that must be unpacked in exactly the right order, and `print_report` takes seven arguments. Returning one dictionary (`{"total": ..., "active_ids": [...], "alerts": [...]}`) is safer, and a dict is exactly what an API endpoint returns as JSON.
+* ⬜ `[CONCEPT]` **The health score doesn't scale with fleet size.** A fixed −10 per problem means 10 low-battery trucks zero out a 200-truck fleet the same as a 10-truck fleet. Worth deciding whether it should be a percentage of the fleet.
+* ⬜ `[CONCEPT]` **No error handling on load.** A missing file, bad JSON, or a record missing a key would crash with a raw traceback. Same principle as the GitHub client: fail with a clear message.
+* ⬜ `[CONCEPT]` **Relative file path.** `open("forklift_data.json")` only works if I run the script from the project folder. Building the path from the script's own location fixes that.
+* ⬜ `[CONCEPT]` **Timestamp.** `datetime.today()` is naive and prints microseconds. I already learned to use `datetime.now(timezone.utc)` in the GitHub client, and a formatted string reads better in a report.
 
 ---
 
@@ -137,6 +137,49 @@ Repo: `DJH333/FORKLIFT-FLEET-API`. I chose one repo for the whole project rather
 * `[CONCEPT]` **`-u` on the first push** links local `main` to `origin/main`, so later I can just run `git push` / `git pull`.
 * `[CONCEPT]` **Tags aren't pushed by a normal `git push`.** They need their own push. The `v1-static-report` tag gives anyone a fixed snapshot of Phase 1 to compare against later work.
 * `[CONCEPT]` The PyCharm prompt to exclude ignored directories is an IDE indexing setting, not Git. Git already ignores those folders via `.gitignore`.
+
+---
+
+## REFACTOR & FIXES (after Phase 1, before the API)
+
+Output before and after each change was checked by running `py main.py` and comparing the summary counts forklift by forklift.
+
+### Fix 1: charging count uses `status`
+
+* `[STEP]` Changed the charging check from `location == "Charging Station"` to a `status` check, and moved it into the same `if` / `elif` chain as `offline` and `active`.
+* `[STEP]` My first attempt compared `status == "Charging Station"` (a location value, so nothing matched, giving Charging: 0). My second used `"Charging"` with a capital C, while the data says `"charging"`. The final version matches the data exactly.
+* `[CONCEPT]` **One field, one source of truth.** Location says where a truck *is*; status says what it's *doing*. A truck can sit at the charging station while offline, or charge at the dock.
+* `[CONCEPT]` **String comparison is exact.** `"Charging"` ≠ `"charging"`. Capitalization and spaces matter.
+* `[CONCEPT]` **Mutually exclusive states belong in one `if` / `elif` chain.** Each forklift lands in exactly one bucket, so the counts add up to the total. It's the same reasoning as the battery tiers.
+* `[STEP]` Removed the now-unused `location = forklift["location"]` line from `analyze_fleet`.
+
+### Fix 2: an `else` for unknown statuses
+
+* `[STEP]` Added an `else` to the status chain that appends `{forklift_id} UNKNOWN STATUS: '{status}'` to the alerts.
+* `[CONCEPT]` **No silent misses.** Before, a status that matched nothing (a typo, a new value) was simply skipped, which is the same kind of bug as the charging one. Now it shows up in the report.
+* `[CONCEPT]` **Put the bad value in the alert, in quotes.** The reader sees *what* is wrong, and quotes reveal hidden problems like a trailing space (`'active '`).
+* `[CONCEPT]` The `else` proved itself immediately: my capital-C `"Charging"` mistake made RAY-205 fall through to it, and the report flagged it instead of silently dropping the forklift.
+* `[STEP]` Tested it by **deliberate provocation**: temporarily set a forklift's status to `"maintenance"`, ran the report, confirmed the unknown-status alert appeared and the forklift wasn't counted in any bucket.
+* `[CONCEPT]` This is the report-side version of input validation. In Phase 2, a Pydantic model can restrict `status` to the allowed values so bad data is rejected at the API boundary before the analysis ever sees it.
+
+### Feature: `maintenance` status
+
+* `[STEP]` Made `maintenance` a real, supported status instead of leaving it as "unknown" data: its own `elif`, its own list, a `Maintenance:` line in the summary, an `UNDER MAINTENANCE` alert, and a −5 health penalty. Set RAY-102 to `maintenance` in the sample data.
+* `[CONCEPT]` **Unknown vs. legitimate states.** The unknown-status alert means "this data is wrong." Maintenance is a real forklift state (trucks get locked out for service all the time), so it gets handled like the others rather than permanently tripping the bad-data alert.
+* `[CONCEPT]` **Why −5 for maintenance vs −10 for offline?** Maintenance is *planned* downtime. It reduces availability, but it's known and scheduled. Offline is an *unexpected* failure that someone has to investigate. Planned downtime should hurt the score less.
+* `[STEP]` Verified the numbers by hand: 100 − 10 − 5 (RAY-102: low battery, maintenance) − 10 − 5 (RAY-310: critical battery, speeding) − 10 (RAY-500: offline) = **60%**, which matches the report. Status counts are 2 / 1 / 1 / 1 = 5 of 5.
+* `[CONCEPT]` Open design questions I can discuss: should a truck already in maintenance count as an *alert* (does anyone need to act)? Should it still get a low-battery warning when nobody will dispatch it?
+
+### Refactor: `analyze_fleet` returns one dictionary
+
+* `[STEP]` Changed `analyze_fleet` from returning six separate values to returning one dict with labeled keys: `total_forklifts`, `active`, `charging`, `offline`, `maintenance`, `alerts`.
+* `[STEP]` `print_report` now takes `(forklifts, health_score, summary)` instead of eight parameters and reads values by key, e.g. `len(summary["active"])`. `print_alerts` receives `summary["alerts"]`.
+* `[STEP]` Confirmed the report output was identical before and after. A refactor should change *how* the code is organized, not *what* it produces.
+* `[CONCEPT]` **Why?** A tuple is matched **by position**: swap two names when unpacking and Python silently puts the active list in the charging variable, printing wrong numbers with no error. A dict is read **by name**, so order doesn't matter, and a misspelled key fails loudly with a `KeyError`.
+* `[CONCEPT]` Adding a status used to mean editing three places in the same order (the `return`, the unpacking line, and `print_report`'s parameters). Now it's one new key. Adding `maintenance` right before this refactor is what made the problem obvious.
+* `[CONCEPT]` A dict is exactly what a FastAPI endpoint returns: FastAPI turns it into JSON with the same labels. This refactor is a direct step toward something like `GET /fleet/summary`.
+* `[CONCEPT]` **Defining a function vs. calling it.** `def print_report(forklifts, health_score, summary):` only saves instructions; nothing inside runs yet. Parameters are placeholders filled in at *call* time, so `summary` doesn't need to exist until the line that calls `print_report`. The parameter name and the variable passed in don't even have to match. I was already doing this with `forklifts`.
+* `[CONCEPT]` **How to design functions up front:** for each function, ask "what does it need?" (its parameters) and "what does it hand back?" (its return). The bottom of the file then just chains outputs into inputs: `load_forklift_data()` → `forklifts` → `analyze_fleet()` → `summary` → `print_report()`.
 
 ---
 
