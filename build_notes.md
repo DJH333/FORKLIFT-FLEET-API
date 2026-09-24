@@ -96,7 +96,7 @@ A running log of what I built, why I built it that way, and what I learned. I us
 I reviewed the Phase 1 code before building the API on top of it. These are real findings I can talk about in an interview ("here's what I'd do differently and why"). Status: ✅ = fixed (see **Refactor & fixes** below), ⬜ = still to do.
 
 * ✅ `[CONCEPT]` **Charging count bug.** `analyze_fleet` counts "charging" by `location == "Charging Station"` instead of by `status == "charging"`. With the current data, the "Charging: 1" in the report is RAY-500, which is actually *offline*. RAY-205 (status `charging`) isn't counted anywhere, so it's in none of the buckets. The totals only add up to 5 by coincidence. Lesson: pick **one** source of truth for state (the `status` field) and don't infer it from a different field.
-* ⬜ `[CONCEPT]` **Top-level script code.** The load/analyze/print calls run as soon as the file is imported. Once FastAPI imports my analysis functions, that would print a report every time the server starts. The fix is the `if __name__ == "__main__":` guard.
+* ✅ `[CONCEPT]` **Top-level script code.** The load/analyze/print calls run as soon as the file is imported. Once FastAPI imports my analysis functions, that would print a report every time the server starts. The fix is the `if __name__ == "__main__":` guard.
 * ⬜ `[CONCEPT]` **Duplicated thresholds ("magic numbers").** `20` and `6.0` appear in both `analyze_fleet` and `fleet_health`. If I change the speed limit in one place, the alerts and the score disagree. They should be named constants defined once (e.g. `LOW_BATTERY_PCT = 20`).
 * ⬜ `[CONCEPT]` **Unused variables in `fleet_health`.** (Removed the unused `location` line from `analyze_fleet`; `fleet_health` still has them.) It unpacks `forklift_id`, `location`, etc., then uses `forklift["battery"]` directly anyway. That's leftover from copying the loop.
 * ⬜ `[CONCEPT]` **Misleading names.** (Partly addressed: the summary dict keys are now `"active"`, `"charging"`, etc., but the local variables are still `number_*`.) `number_active` is a list of IDs, not a number. `active_ids` says what it actually holds.
@@ -180,6 +180,14 @@ Output before and after each change was checked by running `py main.py` and comp
 * `[CONCEPT]` A dict is exactly what a FastAPI endpoint returns: FastAPI turns it into JSON with the same labels. This refactor is a direct step toward something like `GET /fleet/summary`.
 * `[CONCEPT]` **Defining a function vs. calling it.** `def print_report(forklifts, health_score, summary):` only saves instructions; nothing inside runs yet. Parameters are placeholders filled in at *call* time, so `summary` doesn't need to exist until the line that calls `print_report`. The parameter name and the variable passed in don't even have to match. I was already doing this with `forklifts`.
 * `[CONCEPT]` **How to design functions up front:** for each function, ask "what does it need?" (its parameters) and "what does it hand back?" (its return). The bottom of the file then just chains outputs into inputs: `load_forklift_data()` → `forklifts` → `analyze_fleet()` → `summary` → `print_report()`.
+
+### Fix 3: `if __name__ == "__main__":` guard
+
+* `[STEP]` Moved the five lines at the bottom of `main.py` (load → score → analyze → print report → print alerts) under `if __name__ == "__main__":`.
+* `[CONCEPT]` **The problem:** code that isn't inside a function runs whenever Python reads the file. That happens both when I run `py main.py` *and* when another file does `from main import analyze_fleet`. Without the guard, just importing a function would print the whole report. The FastAPI app will import these functions, so this would print a report every time the server starts.
+* `[CONCEPT]` **How it works:** every Python file has a built-in variable `__name__`. It's set to `"__main__"` only for the file I ran directly. When the file is imported, `__name__` is the module's name (`"main"`), so the guarded block is skipped.
+* `[CONCEPT]` The guard lets one file work two ways: as a **script** I run, and as a **module** other files can import without side effects.
+* `[STEP]` Proved it by deliberate provocation: created a throwaway `test_import.py` containing only `from main import analyze_fleet`. With the guard it printed nothing. With the guard temporarily removed, the full report printed. Put the guard back, confirmed `py main.py` still prints the report, and deleted the test file without committing it.
 
 ---
 
