@@ -20,24 +20,25 @@ def analyze_fleet(forklifts):
     for forklift in forklifts:
 
         forklift_id = forklift["forklift_id"]
-        location = forklift["location"]
         battery = forklift["battery"]
         speed = forklift["speed"]
         status = forklift["status"]
 
-        if location == "Charging Station":
+        if status == "offline":
+            alerts.append(f"{forklift_id} OFFLINE ALERT")
+            number_offline.append(forklift_id)
+        elif status == "active":
+            number_active.append(forklift_id)
+        elif status == "charging":
             number_charging.append(forklift_id)
+        else:
+            alerts.append(f"{forklift_id} UNKNOWN STATUS: '{status}'")
         if battery < 10:
             alerts.append(f"CRITICAL - {forklift_id} BATTERY: {battery}%")
         elif battery < 20:
             alerts.append(f"WARNING - {forklift_id} BATTERY: {battery}%")
         if speed > 6.0:
             alerts.append(f"{forklift_id} SPEED WARNING: {speed} mph")
-        if status == "offline":
-            alerts.append(f"{forklift_id} OFFLINE ALERT")
-            number_offline.append(forklift_id)
-        elif status == "active":
-            number_active.append(forklift_id)
 
     return total_forklifts, number_active, number_charging, number_offline, alerts
 
