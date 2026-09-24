@@ -129,8 +129,9 @@ def print_alerts(alerts):
     NO ALERTS:
 ------------------""")
 
-forklifts = load_forklift_data()
-health_score = fleet_health(forklifts)
-summary = analyze_fleet(forklifts)
-print_report(forklifts, health_score, summary)
-print_alerts(summary["alerts"])
+if __name__ == "__main__":
+    forklifts = load_forklift_data()
+    health_score = fleet_health(forklifts)
+    summary = analyze_fleet(forklifts)
+    print_report(forklifts, health_score, summary)
+    print_alerts(summary["alerts"])
